@@ -1,0 +1,107 @@
+---
+#================docker install=====================#
+  - name: Add Docker GPG apt Key
+    apt_key:
+      url: https://download.docker.com/linux/ubuntu/gpg
+      state: present
+  - name: Add Docker Repository bionic version
+    apt_repository:
+      repo: deb https://download.docker.com/linux/ubuntu bionic stable
+      state: present
+    when: ansible_distribution_version == "18.04"
+    ignore_errors: true
+  - name: Add Docker Repository for focal version
+    apt_repository:
+      repo: deb https://download.docker.com/linux/ubuntu focal stable
+      state: present
+    when: ansible_distribution_version == "20.04"
+    ignore_errors: true
+  - name: Install atop package
+    become: yes
+    apt:
+      name: atop
+      state: present
+  - name: Install docker package
+    become: yes
+    apt:
+      name: docker-ce
+      state: present
+    with_items:
+      - ca-certificates
+      - gnupg
+    tags:
+      - docker
+  - name: Install unzip
+    become: yes
+    package:
+      name: unzip
+      state: latest
+  - name: Install jq
+    become: yes
+    package:
+      name: jq
+      state: latest
+  - name: Install pbzip2
+    become: yes
+    package:
+      name: pbzip2
+      state: latest
+  - name: Install net-tools package
+    become: yes
+    package:
+      name: net-tools
+      state: latest
+  - name: Install python3-pip package
+    become: yes
+    package:
+      name: python3-pip
+      state: latest
+  - name: Install python3-pip package
+    become: yes
+    package:
+      name: python3-pip
+      state: latest
+  - name: Update pip if it possible
+    pip:
+      name: pip
+      executable: pip3
+      state: latest
+  - name: Install PyOpenSSL for Python
+    pip:
+      name: pyopenssl
+      executable: pip3
+      state: latest
+
+# https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
+  - name: Download awscliv2 installer.
+    unarchive:
+      src: "https://awscli.amazonaws.com/awscli-exe-linux-{{ ansible_architecture }}.zip"
+      dest: "{{ executable_temp_dir }}"
+      remote_src: true
+      creates: '{{ executable_temp_dir }}/aws'
+      mode: 0755
+
+  - name: Run the installer.
+    command:
+    args:
+      cmd: "{{ executable_temp_dir }}/aws/install"
+      creates: /usr/local/bin/aws
+    become: true
+
+  - name: Install Docker Module for Python
+    pip:
+      name: docker
+      executable: pip3
+      state: present
+  - name: pip install yaml module
+    pip:
+      name:
+        - PyYAML==5.1
+        - netaddr
+      executable: pip3
+      extra_args: --ignore-installed
+#=========docker-compose install=================#
+  - name: Install Docker-compose for Python
+    pip:
+      name: docker-compose
+      executable: pip3

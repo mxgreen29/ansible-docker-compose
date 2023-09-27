@@ -1,0 +1,3 @@
+## Nginx setting and public domain configuration
+public_domain: example.com
+#ssl: true

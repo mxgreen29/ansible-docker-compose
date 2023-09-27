@@ -1,0 +1,150 @@
+---
+  - name: Include vars users
+    include_vars:
+      file: "defaults/users.yml"
+  - name: Include vars users
+    include_vars:
+      file: "defaults/old_users.yml"
+  - name: set fact old users
+    set_fact: old_user="{% set user_list = [] %}{% for user, cfg in old_users.items() %}{% do user_list.append( user ) %}{% endfor %}{{ user_list }}"
+    when: old_users is defined
+  - name: set fact users
+    set_fact: user="{% set user_list = [] %}{% for user, cfg in users.items() %}{% do user_list.append( user ) %}{% endfor %}{{ user_list }}"
+    when: users is defined
+  - name: set fact his keys
+    set_fact: keys="{% set keys_list = [] %}{% for user, cfg in  users.items() %}{% do keys_list.append( cfg.key ) %}{% endfor %}{{ keys_list }}"
+    when: users is defined
+  - name: set fact his groups
+    set_fact: group="{% set group_list = [] %}{% for user, cfg in users.items() %}{% if cfg.groups is defined %}{% do group_list.append( cfg.groups ) %}{% endif %}{% endfor %}{{ group_list }}"
+    when: users is defined
+  - name: Set hostname
+    hostname:
+      name: "{{ inventory_hostname }}"
+    when: inventory_hostname != 'localhost'
+  - name: Set public_domain variable
+    set_fact:
+      public_domain: >-
+        {% if inventory_hostname != inventory_hostname_short %}
+        {{ inventory_hostname | regex_replace(inventory_hostname_short + "\\.?", '') }}
+        {% else %}
+        {{ inventory_hostname }}
+        {% endif %}
+
+    when:
+      - inventory_hostname != 'localhost'
+      - public_domain is not defined
+  - amazon.aws.ec2_metadata_facts:
+  - name: Set region variable
+    set_fact: region = "{{ ansible_ec2_placement_region }}"
+    when: "'aws' in group_names"
+  - name: Ensure group "somegroup" exists
+    group:
+      name: "{{ item }}"
+      state: present
+    loop:
+      - adm
+      - admin
+      - users
+      - developer
+    when: create_linux_groups
+  - name: Allow users from group "admin" use sudo without password
+    lineinfile:
+      dest: /etc/sudoers.d/20_admin
+      create: yes
+      state: present
+      mode: 0440
+      regexp: '^%admin'
+      line: '%admin ALL=(ALL) NOPASSWD: ALL'
+      validate: 'visudo -cf %s'
+    when: create_linux_groups
+
+  - name: Allow users from group "developer" use sudo without password
+    blockinfile:
+      path: /etc/sudoers.d/65_developers
+      insertbefore: "^%developer"
+      mode: 0440
+      create: yes
+      validate: visudo -cf %s
+      content: |
+        %developer ALL=(ALL) NOPASSWD: /usr/bin/yum update
+        %developer ALL=(ALL) NOPASSWD: /usr/local/bin/docker-compose *
+        %developer ALL=(ALL) NOPASSWD: /bin/ps ax
+        %developer ALL=(ALL) NOPASSWD: /bin/netstat
+        %developer ALL=(ALL) NOPASSWD: /usr/sbin/tcpdump
+        %developer ALL = (ALL) NOPASSWD : /bin/cat /var/log/upstart/cx*
+    when: create_linux_groups
+
+
+  - name: Create ssl certificate
+    copy:
+      src: ssl/certificates/{{ public_domain }}.crt
+      dest: /etc/ssl/{{ public_domain }}.crt
+      mode: '0600'
+    when:
+      - public_domain is defined
+      - ssl
+  - name: Create ssl certificate key
+    copy:
+      src: ssl/certificates/{{ public_domain }}.key
+      dest: /etc/ssl/{{ public_domain }}.key
+      mode: '0600'
+    notify: restart nginx
+    when:
+      - public_domain is defined
+      - ssl
+
+
+  #https://docs.ansible.com/ansible/latest/collections/ansible/builtin/user_module.html
+  - name: Remove old users
+    ansible.builtin.user:
+      name: "{{ item }}"
+      state: absent
+      remove: yes
+    loop: "{{ old_user }}"
+    loop_control:
+      index_var: index
+    when: old_users is defined
+  - name: Create users
+    ansible.builtin.user:
+      name: "{{ item }}"
+      shell: /bin/bash
+      groups: "{{ group[index] }}"
+      append: yes
+    loop: "{{ user }}"
+    loop_control:
+      index_var: index
+    when: users is defined
+  - name: Create sshkeys for users
+    authorized_key:
+      user: "{{ item }}"
+      state: present
+      key: "{{ keys[index] }}"
+    loop: "{{ user }}"
+    loop_control:
+      index_var: index
+    when: users is defined
+
+  ##============= Docker and another pkg installing ============#
+  - name: Include packages for Amazon Linux
+    import_tasks: amazon-packages.yml
+    when: ansible_facts['distribution'] == "Amazon"
+  - name: Include packages for Ubuntu
+    import_tasks: apt-packages.yml
+    when: ansible_facts['distribution'] == "Ubuntu"
+  - name: Create docker config
+    copy:
+      src: daemon.json
+      dest: /etc/docker/daemon.json
+    notify: Restart service docker
+#  - name: Login in docker repo for users
+#    docker_login:
+#      registry: example.registry.com
+#      username: example
+#      password: "{{ example_token }}"
+#  - name: Login in our gitlab-registry for users
+#    docker_login:
+#      registry: example.registry.com
+#      username: example
+#      password: "{{ example_token }}"
+#      config_path: /home/{{ item }}/.docker/config.json
+#    loop: "{{ user }}"

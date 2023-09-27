@@ -1,0 +1,37 @@
+  - name: Create directory data
+    ansible.builtin.file:
+      path: '{{ apps_root_path }}/mongo/'
+      state: directory
+      mode: '0755'
+      recurse: no
+  - name: Create mongo init script
+    template:
+      src: mongo/init_mongo.js.j2
+      dest: '{{ apps_root_path }}/mongo/init_mongo.js'
+  - name: Create mongo backup script
+    template:
+      src: mongo/dumps/backups.sh.j2
+      dest: '{{ apps_root_path }}/mongo/backups.sh'
+    when:
+      - mongo_backup
+      - s3_backup_path is defined
+  - name: Create directory data
+    ansible.builtin.file:
+      path: '{{ apps_root_path }}/mongo/data/'
+      state: directory
+      mode: '0755'
+      recurse: no
+  - name: generate openssl
+    shell: '[ ! -f mongo-replication.key ] && openssl rand -base64 768 > mongo-replication.key && chown 999:999 mongo-replication.key && chmod 400 mongo-replication.key || echo "exists"'
+    args:
+      chdir: "{{ apps_root_path }}/mongo/data/"
+      executable: /bin/bash
+  - name: Create cron job for backups
+    ansible.builtin.cron:
+      name: "MongoDB backups"
+      minute: "0"
+      hour: "4"
+      job: "chmod +x {{ apps_root_path }}/mongo/dumps/backups.sh && {{ apps_root_path }}/mongo/dumps/backups.sh >> /var/log/cron_mongo.log 2>&1"
+    when:
+      - mongo_backup
+      - s3_backup_path is defined

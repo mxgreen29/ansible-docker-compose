@@ -1,0 +1,11 @@
+---
+- name: Restart service docker
+  ansible.builtin.service:
+    name: docker
+    state: restarted
+- name: restart nginx
+  shell: docker-compose restart nginx
+  args:
+    chdir: "{{ apps_root_path }}"
+  ignore_errors: yes
+  tags: apps

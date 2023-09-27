@@ -1,0 +1,88 @@
+# This file is managed by Ansible. DO NOT EDIT.
+#NGINX site - local
+
+  #local/http-local
+  server {
+  listen                ${NGINX_LISTEN_IP}:${NGINX_HTTP_PORT};
+  server_name           127.0.0.1 localhost nginx;
+  include               conf.d/core/favicon.conf;
+
+
+  location / {
+  auth_request                off;
+  return                      301 https://$host$request_uri;
+  }
+}
+
+  #local/https-local
+  server {
+  listen                ${NGINX_LISTEN_IP}:${NGINX_HTTPS_PORT} ssl;
+  server_name           127.0.0.1 localhost nginx;
+  include               conf.d/core/favicon.conf;
+  include               conf.d/core/ssl_base.conf;
+  ssl_certificate       ${NGINX_SSL_CERT};
+  ssl_certificate_key   ${NGINX_SSL_KEY};
+
+
+  location /health {
+  auth_request                off;
+  alias                       /usr/share/nginx/html/;
+  }
+}
+
+  #local/http-hostcheck
+  server {
+  listen                ${NGINX_LISTEN_IP}:${NGINX_HTTP_PORT} default_server;
+  server_name           "";
+  include               conf.d/core/favicon.conf;
+  return                444;
+
+}
+
+  #local/https-hostcheck
+  server {
+  listen                ${NGINX_LISTEN_IP}:${NGINX_HTTPS_PORT} default_server ssl;
+  server_name           "";
+  include               conf.d/core/favicon.conf;
+  include               conf.d/core/ssl_base.conf;
+  ssl_certificate       ${NGINX_SSL_CERT};
+  ssl_certificate_key   ${NGINX_SSL_KEY};
+  return                444;
+
+}
+
+  #local/consul-hostcheck
+  server {
+  listen                ${NGINX_LISTEN_IP}:8500 default_server;
+  server_name           "";
+  include               conf.d/core/favicon.conf;
+  return                444;
+
+}
+
+  #local/consul_int
+  server {
+  listen                ${NGINX_LISTEN_IP}:8500;
+  server_name           127.0.0.1 consul localhost;
+  include               conf.d/core/favicon.conf;
+
+
+  location /v1 {
+  auth_request                off;
+  proxy_pass                  http://consul_http;
+  proxy_pass_request_body     on;
+  proxy_pass_request_headers  on;
+  proxy_redirect              default;
+  proxy_http_version          1.1;
+  proxy_connect_timeout       60s;
+  proxy_read_timeout          60s;
+  proxy_send_timeout          60s;
+  proxy_buffering             on;
+  proxy_set_header            Host $host;
+  proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
+  proxy_set_header            X-Forwarded-Proto $scheme;
+  proxy_set_header            X-Real-IP $remote_addr;
+  proxy_hide_header           Server;
+  proxy_hide_header           X-Frame-Options;
+  }
+}

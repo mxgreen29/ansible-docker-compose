@@ -1,0 +1,5 @@
+#!/bin/bash
+size=$(df -h / | tail -1 | awk '{print $5+0}')
+if (($size > 90)); then
+docker volume prune -f && docker system prune -a -f
+  fi

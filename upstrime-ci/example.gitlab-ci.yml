@@ -1,0 +1,64 @@
+image: python:3.10
+stages:
+  - validate
+  - ansible
+variables:
+  GITLAB_URL: gitlab.com
+  KEY: $SSH_PRIVATE_KEY
+
+gathering-yml:
+  stage: validate
+  before_script:
+    - pip3 install pyyaml
+    - files=$(git diff-tree --no-commit-id --name-only -r $CI_COMMIT_BEFORE_SHA $CI_COMMIT_SHA) || true
+    - echo $files
+    - servers_dir=$(echo "$files" | grep -E -i '(.tech|.com|.io).yml' |  sed 's|\(.*\)/.*|\1|' | uniq)
+    - echo $servers_dir
+    - list_server=$(echo "$files" | grep -E -i '(.tech|.com|.io).yml' |  awk -F '/' '{print $NF}' | awk -F'.yml' '{print $1}' | sed -e '$ ! s/$/,/g' | tr -d '\n') || true
+    - echo $list_server
+    - public_domain=$(echo "$files" | grep -E -i '(.tech|.com|.io).yml' |  sed 's|.*/||' | sed 's|.yml||' | sed 's/.*\.\(.*\..*\)/\1/' | uniq)
+    - echo $public_domain
+    - echo "LIST_SERVER=\"$list_server\"" >> job.env
+    - echo "JOB_ID=$CI_JOB_ID" >> job.env
+    - echo "SERVERS_DIR=$servers_dir" >> job.env
+    - if [ $(echo $public_domain | wc -w) == 1 ]; then echo "PUBLIC_DOMAIN=$public_domain" >> job.env; fi
+  artifacts:
+    name: servers-yml
+    when: on_success
+    expire_in: 10 min
+    paths:
+      - "**/*.io.yml"
+      - "**/*.tech.yml"
+      - "**/*.com.yml"
+    reports:
+      dotenv: job.env
+  script:
+    - python3 parse_dockers.py $servers_dir
+  only:
+    changes:
+      - "**/*.io.yml"
+      - "**/*.tech.yml"
+      - "**/*.com.yml"
+
+trigger-ansible:
+  stage: ansible
+## This method doesn't work T.T  
+  #  trigger: 
+  #    project: IT/ansible
+  #    branch: main
+  #    strategy: depend
+  #    token: $DEPLOY_TOKEN
+  script:
+    - "curl -X POST -F token=$DEPLOY_TOKEN -F ref=main -F variables[CI_COMMIT_TITLE]='Update $LIST_SERVER' -F variables[DOWNSTREAM]=true -F variables[LIST_SERVER]=$LIST_SERVER -F variables[JOB_ID]=$JOB_ID -F variables[PROJECT_ID]=$CI_PROJECT_ID -F variables[SERVERS_DIR]=$SERVERS_DIR -F variables[PUBLIC_DOMAIN]=$PUBLIC_DOMAIN https://${GITLAB_URL}/api/v4/projects/270/trigger/pipeline"
+  variables:
+    DOWNSTREAM: 'true'
+    JOB_ID: $JOB_ID
+    SERVERS_DIR: $SERVERS_DIR
+    LIST_SERVER: $LIST_SERVER
+    PUBLIC_DOMAIN: $PUBLIC_DOMAIN
+  only:
+    changes:
+      - "**/*.io.yml"
+      - "**/*.tech.yml"
+      - "**/*.com.yml"
+  when: manual

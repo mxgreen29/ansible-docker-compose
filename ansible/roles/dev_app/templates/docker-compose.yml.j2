@@ -1,0 +1,228 @@
+---
+version: '3.8'
+networks:
+  core_net:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.19.0.0/16
+    driver_opts:
+      com.docker.network.bridge.name: docker-core
+volumes:
+{% if 'nginx' in defaults %}
+  nginx-conf: {}
+{% endif %}
+{% if 'prometheus' in defaults %}
+  prom-data: {}
+{% endif %}
+{% if volumes is defined %}
+{% for volume, cfg in volumes.items() %}
+  {{ volume }}: {}
+{% endfor %}
+{% endif %}
+
+services:
+{% if defaults is defined %}
+{% for app_id, cfg in defaults.items() %}
+{% if app_id == "nginx" %}
+  nginx:
+    image: custom-nginx:1.0.0
+    networks:
+      core_net:
+        ipv4_address: 172.19.1.1
+    ports:
+      - 443:443/tcp
+      - 80:80/tcp
+    environment:
+      NGINX_HTTPS_PORT: 443
+      NGINX_HTTP_PORT: 80
+      NGINX_LISTEN_IP: 0.0.0.0
+      NGINX_USER: nginx
+    volumes:
+      - {{ apps_root_path }}/nginx/sites/:/etc/nginx/templates/sites/
+      - {{ apps_root_path }}/nginx/sites_include.conf.conf:/etc/nginx/templates/sites_include.conf.conf
+      - /etc/ssl/{{ public_domain }}.crt:/etc/ssl/nginx.crt
+      - /etc/ssl/{{ public_domain }}.key:/etc/ssl/nginx.key
+      - nginx-conf:/etc/nginx
+    restart: always
+####-----------------------------------------------####
+{% endif %}
+{% if app_id == "mongo" %}
+  mongo:
+    networks:
+      core_net:
+        ipv4_address: 172.19.1.7
+    image: mongo:4.4
+    container_name: mongo
+    command: [ "--replSet", "rs0", "--keyFile", "/etc/mongo-replication.key", "--bind_ip_all", "--port", "27017" ]
+    environment:
+      MONGO_INITDB_DATABASE: admin
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: {{ mongo_root_password }}
+    volumes:
+      - {{ apps_root_path }}/mongo/data/mongo-1:/data/db
+      - {{ apps_root_path }}/mongo/data/mongo-replication.key:/etc/mongo-replication.key
+      - {{ apps_root_path }}/mongo/init_mongo.js:/docker-entrypoint-initdb.d/20_init_mongo.js
+    ports:
+      - 27017:27017
+    healthcheck:
+      test: test $$(echo "rs.initiate({_id:'rs0',members:[{_id:0,host:\"mongo:27017\"}]}).ok || rs.status().ok" | mongo -u $${MONGO_INITDB_ROOT_USERNAME} -p $${MONGO_INITDB_ROOT_PASSWORD} --quiet) -eq 1
+      interval: 10s
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+{% if cfg.limit is defined %}
+          memory: {{ cfg.limit }}
+{% else %}
+          memory: 2G
+{% endif %}
+    restart: unless-stopped
+####-----------------------------------------------####
+{% endif %}
+{% if app_id == "promtail" %}
+  promtail:
+    networks:
+      core_net:
+        ipv4_address: 172.19.1.8
+    image: grafana/promtail:2.8.2
+    restart: always
+    volumes:
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - {{ apps_root_path }}:{{ apps_root_path }}:ro
+      - {{ apps_root_path }}/prometheus/promtail.yml:/etc/promtail/config.yml
+    command:
+      - "-config.file=/etc/promtail/config.yml"
+      - "-client.external-labels=hostname={{ inventory_hostname }}"
+####-----------------------------------------------####
+{% endif %}
+{% if app_id == "rabbitmq" %}
+  rabbitmq:
+    networks:
+      core_net:
+        ipv4_address: 172.19.1.6
+    image: rabbitmq:3.8-management
+    restart: always
+    environment:
+      RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: '-rabbit channel_max 0'
+      RABBITMQ_DEFAULT_VHOST: vhost
+      RABBITMQ_DEFAULT_USER: dev
+      RABBITMQ_DEFAULT_PASS: {{ rabbitmq_pass }}
+    ports:
+      - 5672:5672
+####-----------------------------------------------####
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if 'prometheus' in defaults %}
+  prometheus:
+    image: custom-prometheus:1.0.0
+    container_name: prometheus
+    restart: unless-stopped
+    environment:
+      PROXY_CONSUL_CHECK: http://prometheus:9090
+      LISTEN_IP: 0.0.0.0
+      LISTEN_PORT_HTTP: 9090
+    volumes:
+      - {{ apps_root_path }}/prometheus/:/etc/prometheus/
+      - {{ apps_root_path }}/prom-data:/prometheus
+      - /etc/hosts:/etc/hosts:ro
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.external-url=https://prometheus.{{ public_domain }}'
+      - '--web.enable-admin-api'
+      - '--storage.tsdb.retention=186d'
+      - '--web.console.templates=/etc/prometheus/templates'
+      - '--web.enable-lifecycle'
+    ports:
+      - 9090:9090/tcp
+    networks:
+      core_net:
+        ipv4_address: 172.19.1.4
+####-----------------------------------------------####
+{% endif %}
+{% if apps is defined %}
+{% for app_id, cfg in apps.items() %}
+  {{ app_id }}:
+    image: {{ cfg.image }}
+{% if cfg.container_name is defined %}
+    container_name: {{ cfg.container_name }}
+{% endif %}
+{% if cfg.user is defined %}
+    user: {{ cfg.user }}
+{% endif %}
+{% if cfg.hostname is defined %}
+    hostname: {{ cfg.hostname }}
+{% endif %}
+{% if cfg.entrypoint is defined %}
+    entrypoint:
+{{ cfg.entrypoint | indent(width=6, first=true) }}
+{% endif %}
+{% if cfg.logging is defined %}
+    logging:
+      driver: none
+{% endif %}
+{% if cfg.environment is defined %}
+    environment:
+      HOSTNAME: {{ inventory_hostname }}
+{% for e_key, e_value in cfg.environment.items() %}{#1 #}
+{% if e_key|upper == "JAVA_OVERRIDES" %}{#2 #}
+      {{ e_key|upper }}: |-
+{{ e_value | indent(width=8, first=true) }}
+{% else %}{#2 ELSE #}
+      {{ e_key|upper }}: {{ '"' ~ e_value ~ '"' }}
+{% endif %}{#2 END #}
+{% endfor %}{#1 END #}
+{% endif %}
+{% if cfg.ports is defined %}
+    ports:
+{% for port in cfg.ports %}{#1 #}
+{% if ':' in port %}{#9 #}
+      - {{ port }}
+{% else %}{#9 #}
+      - {{ list_port.pop(0) }}:{{ port }} #here3
+{% endif %}{#9 #}
+{% endfor %}{#1 END LOOP #}
+{% do list_port.update %}
+{% endif %}
+{% if cfg.volumes is defined %}
+    volumes:
+{% for volumes in cfg.volumes %}
+      - {{ volumes }}
+{% endfor %}
+{% endif %}
+{% if cfg.command is defined %}
+    command:
+{% for command in cfg.command %}
+      - {{ command }}
+{% endfor %}
+{% endif %}
+    networks:
+      core_net:
+{% if list_ip[ app_id ] is defined %}
+        ipv4_address: {{ list_ip[ app_id ] }}
+{% else %}
+{% for n in range(1,255) %}
+{% set ip = '172.19.2.' ~ n %}
+{% if ip not in list_ip.values() %}
+        ipv4_address: {{ ip }}
+{% do list_ip.update({app_id: ip}) %}
+{% break %}
+{% endif%}
+{% endfor %}
+{% endif %}
+{% if cfg.deploy is defined %}
+    deploy:
+{% if cfg.deploy.resources  is defined %}
+      resources:
+{% set param = cfg.deploy.resources %}
+        {{ param | to_nice_yaml | indent(width=6, first=false) }}{% endif %}{% endif %}
+    restart: always
+####-----------------------------------------------####
+{% endfor %}
+{% do list_port.update %}
+{% do list_ip.update %}
+{% endif %}

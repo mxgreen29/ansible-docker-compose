@@ -1,0 +1,22 @@
+# This file is managed by Ansible. DO NOT EDIT.
+#NGINX site - upstreams
+{% if apps is defined %}
+{% for app, cfg in apps.items() %}
+{% if cfg.proxy_port is defined %}
+  upstream {{ app  }}_http_app {
+  server {{ app  }}:{{ cfg.proxy_port }};
+  least_conn;
+  }
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if defaults is defined %}
+{% for app_id, cfg in defaults.items() %}
+{% if cfg.proxy_port is defined %}
+  upstream {{ app_id }}_http {
+  server {{ app_id }}:{{ cfg.proxy_port }};
+  least_conn;
+  }
+{% endif %}
+{% endfor %}
+{% endif %}

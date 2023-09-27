@@ -1,0 +1,60 @@
+---
+- name: recreate apps
+  shell: docker-compose up -d
+  args:
+    chdir: "{{ apps_root_path }}"
+  tags: apps
+- name: restart nginx
+  shell: docker-compose restart nginx
+  args:
+    chdir: "{{ apps_root_path }}"
+  ignore_errors: yes
+  tags: apps
+  when:
+    - "'nginx' in defaults"
+    - ansible_connection != 'local'
+- name: recreate nginx directory
+  ansible.builtin.file:
+    path: '{{ apps_root_path }}/{{ nginx_path }}'
+    state: absent
+
+##====================== Slack Notification ================#
+## Example for Gitlab Ci
+#- name: Send slack notification
+#  slack:
+#    token: "{{ slack_token }}"
+#    channel: "#ansible-channel"
+#    attachments:
+#      - text: "API deployed from Gitlab CI\n"
+#        color: "#39932A"
+#        fields:
+#          - title: "Client"
+#            value: "{{ client }}"
+#            short: true
+#          - title: "Git branch/tag"
+#            value: "{{ CI_COMMIT_REF_NAME }}"
+#            short: true
+#          - title: "What happened?"
+#            value: "Docker-compose has changed"
+#            short: false
+#          - title: "Hosts"
+#            value: "{{ ansible_play_hosts|join(', ') }}"
+#            short: false
+#          - title: "Git commit hash"
+#            value: "{{ CI_COMMIT_SHA }}"
+#            short: false
+#          - title: "Deploying user"
+#            value: "{{ GITLAB_USER_EMAIL }} (id:{{ GITLAB_USER_ID }})"
+#            short: true
+#          - title: "CI Runner"
+#            value: "{{ CI_RUNNER_DESCRIPTION }}"
+#            short: true
+#          - title: "Last commit message"
+#            value: "{{ GIT_LAST_COMMIT_MSG }}"
+#            short: false
+#          - title: "Pipeline"
+#            value: "{{ CI_PROJECT_URL }}/pipelines/{{ CI_PIPELINE_ID }}"
+#            short: false
+#  delegate_to: localhost
+#  run_once: true
+#  when: slack_notification

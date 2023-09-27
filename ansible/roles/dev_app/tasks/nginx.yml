@@ -1,0 +1,38 @@
+  - name: Create a nginx directory if it does not exist
+    ansible.builtin.file:
+      path: '{{ apps_root_path }}/{{ nginx_path }}'
+      state: directory
+      mode: '0755'
+      recurse: yes
+  - name: delete app nginx site config
+    file:
+      dest: "{{ apps_root_path }}/{{ nginx_path }}*.conf.conf"
+      state: absent
+    when: apps is not defined
+  - name: create nginx upstream config
+    template:
+      src: "{{ nginx_path }}upstream.conf.conf.j2"
+      dest: "{{ apps_root_path }}/{{ nginx_path }}upstream.conf.conf"
+  - name: create nginx sites_include config
+    template:
+      src: "nginx/sites_include.conf.conf.j2"
+      dest: "{{ apps_root_path }}/nginx/sites_include.conf.conf"
+  - name: set fact
+    set_fact: app="{% set app_list = [] %}{% for app, cfg in apps.items() %}{% if cfg.proxy_port is defined %}{% do app_list.append( app ) %}{% endif %}{% endfor %}{{ app_list }}"
+    when: apps is defined
+  - name: create nginx site config
+    template:
+      src: "{{ nginx_path }}site.conf.conf.j2"
+      dest: "{{ apps_root_path }}/{{ nginx_path }}{{ item }}.conf.conf"
+    when: apps is defined
+    loop: "{{ app }}"
+  - name: create nginx local config
+    template:
+      src: "{{ nginx_path }}local.conf.conf.j2"
+      dest: "{{ apps_root_path }}/{{ nginx_path }}local.conf.conf"
+    when: apps is not defined
+  - name: delete nginx local config
+    file:
+      dest: "{{ apps_root_path }}/{{ nginx_path }}local.conf.conf"
+      state: absent
+    when: apps is defined

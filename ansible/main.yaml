@@ -1,0 +1,9 @@
+---
+#https://docs.ansible.com/ansible/latest/user_guide/playbooks_reuse.html
+- name: Run base roles 
+  hosts: all
+  remote_user: "{{ ansible_user }}"
+  become: true
+  become_user: root
+  roles:
+    - role: base_role

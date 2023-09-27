@@ -1,0 +1,122 @@
+image: willhallonline/ansible:2.11-alpine-3.13
+variables: 
+  GITLAB_URL: gitlab.com
+
+stages:
+  - ansible_lint
+  - ansible
+  - ansible_app
+.ansible:
+  before_script:
+    - apk add curl
+    - eval $(ssh-agent -s)
+    - mkdir -p ~/.ssh
+    - if [ -z "$KEY" ]; then KEY="$SSH_PRIVATE_KEY"; fi
+    - echo "$KEY" | tr -d '\r' | ssh-add -
+    - chmod 755 -R ansible
+    - cd ansible
+    - echo $VAULT_PASSWORD > password && chmod 600 password
+    - if [ -z "$SERVERS_DIR" ]; then files=$(git diff-tree --no-commit-id --name-only -r $CI_COMMIT_BEFORE_SHA $CI_COMMIT_SHA) || true; fi
+    - if [ -z "$SERVERS_DIR" ]; then list_server=$(echo "$files" | grep -E -i '(.tech|.com|.io).yml' |  awk -F '/' '{print $NF}' | awk -F'.yml' '{print $1}' | sed -e '$ ! s/$/,/g' | tr -d '\n') || true; fi
+    - if [ -z "$PUBLIC_DOMAIN" ]; then PUBLIC_DOMAIN=$(echo "$files" | grep -E -i '(.tech|.com|.io).yml' |  sed 's|.*/||'| sed 's/.*\.\(.*\..*\)/\1/'); fi
+    - if [ -z "$SERVERS_DIR" ]; then SERVERS_DIR="../server"; fi
+    - if [ -z "$LIST_SERVER" ]; then LIST_SERVER=$list_server; fi
+# It also can be downstream pipeline, e.g. u need to trigger this from another project, see /upstrime-ci direcotry
+    - >
+      if [ $DOWNSTREAM == "true" ]; 
+            then 
+              curl --output hosts.zip --header "PRIVATE-TOKEN: $GITLAB_PASSWORD" "https://${GITLAB_URL}/api/v4/projects/$PROJECT_ID/jobs/$JOB_ID/artifacts"
+              unzip hosts.zip
+      fi
+    - python3 inventory_builder.py $SERVERS_DIR
+
+ansible_lint:
+  stage: ansible_lint
+  extends: .ansible
+  services:
+    - docker:dind
+  script:
+    - ansible --version
+    - ansible-lint --project-dir .
+  allow_failure: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+    - if: $DOWNSTREAM
+      when: always
+    - if: $DOWNSTREAM == null && $CI_COMMIT_BRANCH == "main"
+      changes:
+        - ansible/**/*
+
+ansible_update_certs:
+  stage: ansible
+  extends: .ansible
+  variables:
+    SERVERS_DIR: "../base_servers"
+    PUBLIC_DOMAIN: example.com
+  services:
+    - docker:dind
+  script:
+    - ansible --version
+    - PUBLIC_DOMAIN=$(echo $CI_COMMIT_TITLE | grep -E -i '(.tech|.com|.io)' | sed 's/.* \(.*\.com\)/\1/' | sed 's/.* \(.*\.tech\)/\1/')
+    - echo $PUBLIC_DOMAIN
+    - LIST_SERVER=$(echo $(ls $SERVERS_DIR | grep $PUBLIC_DOMAIN | awk -F'.yml' '{print $1}' | sed -e '$ ! s/$/,/g' | tr -d '\n'))
+    - ansible-playbook --private-key "$KEY" main.yaml --vault-id password --limit "$LIST_SERVER" -e "ansible_user=$ansible_user" -e "public_domain=$PUBLIC_DOMAIN" -e "ssl=true" -i inventory/default/hosts.yml
+  rules:
+    - if: $CI_COMMIT_TITLE =~ /Update certificates/
+      when: always
+
+
+ansible_deploy_base:
+  stage: ansible
+  extends: .ansible
+  services:
+    - docker:dind
+  script:
+    - ansible --version
+    - ansible-playbook --private-key "$KEY" main.yaml --vault-id password --limit "$LIST_SERVER" -e "public_domain=$PUBLIC_DOMAIN" -i inventory/default/hosts.yml
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+    - if: $CI_COMMIT_TITLE =~ /Update certificates/
+      when: never
+    - if: $DOWNSTREAM
+      when: always
+    - if: $DOWNSTREAM == null && $CI_COMMIT_BRANCH == "main"
+      changes:
+        - ansible/roles/base_role/**/*
+        - ansible/inventory
+        - ansible/ansible.cfg
+        - ansible/main.yaml
+        - ansible/password
+        - .gitlab-ci.yml
+
+deploy_dev_docker:
+  stage: ansible_app
+  extends: .ansible
+  services:
+    - docker:dind
+  script:
+    - ansible --version
+    - cp ${SERVERS_DIR}/* roles/dev_app/defaults/
+    - ansible-playbook --private-key "$KEY" dev-role.yaml  --vault-id password --limit "$LIST_SERVER" -e "public_domain=$PUBLIC_DOMAIN" -i inventory/default/hosts.yml
+      -e "GITLAB_USER_ID=$GITLAB_USER_ID"
+      -e "CI_COMMIT_REF_NAME=$CI_COMMIT_REF_NAME"
+      -e "CI_COMMIT_SHA=$CI_COMMIT_SHA"
+      -e "CI_PIPELINE_ID=$CI_PIPELINE_ID"
+      -e "CI_PROJECT_URL=$CI_PROJECT_URL"
+      -e "CI_RUNNER_DESCRIPTION=$CI_RUNNER_DESCRIPTION"
+      -e GITLAB_USER_EMAIL="\"$GITLAB_USER_EMAIL\""
+      -e GIT_LAST_COMMIT_MSG="\"$CI_COMMIT_MESSAGE\""
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+    - if: $CI_COMMIT_TITLE =~ /Update certificates/
+      when: never
+    - if: $DOWNSTREAM
+      when: always
+    - if: $DOWNSTREAM == null && $CI_COMMIT_BRANCH == "main"
+      changes:
+        - ansible/roles/dev_app/**/*
+        - server/*
+        - ansible/dev-role.yaml

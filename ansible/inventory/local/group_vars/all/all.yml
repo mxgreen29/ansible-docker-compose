@@ -1,0 +1,5 @@
+---
+executable_temp_dir: /tmp
+create_linux_groups: true
+clear_script: false
+apps_root_path: /app

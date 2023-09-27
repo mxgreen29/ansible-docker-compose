@@ -1,0 +1,17 @@
+---
+#https://docs.ansible.com/ansible/latest/user_guide/playbooks_reuse.html
+
+- name: Run development role
+  hosts: all
+  remote_user: "{{ ansible_user }}"
+  become: true
+  become_user: root
+  roles:
+    - role: dev_app
+      when: ansible_connection != 'local'
+
+- name: Run dev role for local
+  hosts: local
+  roles:
+    - role: dev_app
+      when: ansible_connection == 'local'

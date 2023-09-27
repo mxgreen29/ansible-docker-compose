@@ -1,0 +1,21 @@
+#!/bin/bash
+
+DATE=`date +"%-Y-%m-%d"`
+S3PATH="{{ s3_backup_path }}" # value is empty in secrets.yml by default 
+
+dbs=$(docker exec mongo sh -c 'mongo -udev -p{{ mongo_user_password }} --quiet <<EOF
+show dbs
+quit()
+EOF')
+
+list_db=$(echo $dbs | awk '{ for (i = 1; i <= NF; i++) if (++j % 2 == 1) print $i; }')
+
+for db in ${list_db[*]}
+do
+  if [[ $db != "local" ]]
+  then
+  docker exec mongo sh -c "mongodump --authenticationDatabase admin -udev -p{{ mongo_user_password }} --db $db --archive" | pbzip2 | /usr/local/bin/aws s3 cp - s3://${S3PATH}/${HOSTNAME}/${DATE}/${db}_${DATE}.dump.bz2 && rm ${db}_${DATE}.dump.bz2
+  fi
+done
+
+## How restore this dump? docker exec -i mongo sh -c 'mongorestore --archive -udev -p{{ mongo_user_password }}' < ${db}_${DATE}.dump

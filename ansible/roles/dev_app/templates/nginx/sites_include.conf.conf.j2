@@ -1,0 +1,5 @@
+# Common settings
+proxy_cache_path    ${NGINX_CACHE_DIR} levels=1:2 keys_zone=site_cache:60m max_size=10g inactive=10d; # Sets the path and other parameters of a cache - http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_cache_path
+
+  # Include sites configs
+include conf.d/sites/*.conf;

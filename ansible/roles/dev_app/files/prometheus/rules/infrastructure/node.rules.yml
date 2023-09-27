@@ -1,0 +1,256 @@
+groups:
+- name: nodeRules
+  rules:
+  - record: node_cpu_total
+    expr: sum without(cpu) (node_cpu)
+  - record: node_cpu_cores
+    expr: sum without(cpu) (rate(node_cpu[1m]))
+  - record: node_cpu_nonidle
+    expr: sum by(node) (rate(node_cpu{mode!="idle"}[1m])) / on(node) node_cpu_count
+  - record: node_cpu_cores_count
+    expr: count without(cpu, mode) (node_cpu{mode="idle"})
+  - record: node_memory_used_ratio
+    expr: (node_memory_MemTotal - node_memory_MemFree - node_memory_Buffers - node_memory_Cached) / node_memory_MemTotal
+  - record: node_memory_used_value
+    expr: node_memory_MemTotal - node_memory_MemFree - node_memory_Buffers - node_memory_Cached
+  - record: node_filesystem_used_ratio
+    expr: (node_filesystem_size_bytes - node_filesystem_avail_bytes) / node_filesystem_size_bytes
+  - alert: Disk90pctFull
+    expr: (100 * (1 - avg_over_time(node_filesystem_avail_bytes{device=~"/dev/.*",fstype!="iso9660",mountpoint!="/boot"}[5m]) / on(mountpoint, node, instance) avg_over_time(node_filesystem_size_bytes{device=~"/dev/.*",fstype!="iso9660",mountpoint!="/boot"}[5m])) > 90)
+    for: 15m
+    labels:
+      severity: whine
+    annotations:
+      description: File system {{$labels.mountpoint}} on {{$labels.node}} is on average {{printf "%.1f" $value}} % full the last 6 hours.
+      summary: File system {{$labels.mountpoint}} on {{$labels.node}} is >90% full on average
+  - alert: HostRaidArrayGotInactive
+    expr: (node_md_state{state="inactive"} > 0) * on(instance) group_left (nodename) node_uname_info{nodename=~".+"}
+    for: 0m
+    labels:
+      severity: critical
+    annotations:
+      summary: Host RAID array got inactive (instance {{ $labels.instance }})
+      description: "RAID array {{ $labels.device }} is in degraded state due to one or more disks failures. Number of spare drives is insufficient to fix issue automatically.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+  - alert: HostRaidDiskFailure
+    expr: (node_md_disks{state="failed"} > 0) * on(instance) group_left (nodename) node_uname_info{nodename=~".+"}
+    for: 2m
+    labels:
+      severity: warning
+    annotations:
+      summary: Host RAID disk failure (instance {{ $labels.instance }})
+      description: "At least one device in RAID array on {{ $labels.instance }} failed. Array {{ $labels.md_device }} needs attention and possibly a disk swap\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+    #========= SSL Alerts =========#
+  - alert: SSLCertExpiringSoon
+    expr:  certificate_expiration_days < 14
+    for: 10m
+    labels:
+      severity: whine
+    annotations:
+      summary: 'SSL expire alert'
+      description: "SSL certificate for the {{ $labels.url }} will expire in less than 2 weeks!"
+  - alert: SSLCertExpiringVerySoon
+    expr:  certificate_expiration_days < 7
+    for: 10m
+    labels:
+      severity: critical
+    annotations:
+      summary: 'SSL expire alert'
+      description: "SSL certificate for the {{ $labels.url }} will expire in less than 1 week!"
+  - alert: SSLCertExpiringToday
+    expr: certificate_expiration_days < 1
+    for: 10m
+    labels:
+      severity: critical
+    annotations:
+      summary: 'SSL expire alert CRITICAL!!!'
+      description: "SSL certificate for the {{ $labels.url }} will expire in less than 1 day or already!"
+
+  #======== Disks Alerts ========#
+  - alert: HostOutOfDiskSpace
+    expr: ((node_filesystem_avail_bytes * 100) / node_filesystem_size_bytes < 5 )
+    for: 2m
+    labels:
+      severity: warning
+    annotations:
+      summary: Host out of disk space (instance {{ $labels.instance }})
+      description: "Disk is almost full (< 5% left)\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+  - alert: DiskFillingUp
+    expr: predict_linear(node_filesystem_avail_bytes{device=~"/dev/.*",fstype!="iso9660"}[1d], 7200) / (1024 * 1024 * 1024) < 0
+    for: 15m
+    labels:
+      severity: whine
+    annotations:
+      description: Based on the extrapolating the change in disk usage the last 24
+        hours, it looks like this file system will become full within two hours.
+      summary: File system {{$labels.mountpoint}} on {{$labels.node}} is likely going to fill up within two hours
+  - alert: Disk93pctFull
+    expr: (100 * (1 - avg_over_time(node_filesystem_avail_bytes{device=~"/dev/.*",fstype!="iso9660",mountpoint!="/boot"}[5m]) / on(mountpoint, node, instance) avg_over_time(node_filesystem_size_bytes{device=~"/dev/.*",fstype!="iso9660",mountpoint!="/boot"}[5m])) > 93)
+    for: 30m
+    labels:
+      severity: whine
+    annotations:
+      description: File system {{$labels.mountpoint}} on {{$labels.node}} is {{printf "%.1f" $value}} % full
+      summary: File system {{$labels.mountpoint}} on {{$labels.node}} is >93% full
+  - alert: Disk95pctFull
+    expr: (100 * (1 - avg_over_time(node_filesystem_avail_bytes{device=~"/dev/.*",fstype!="iso9660",mountpoint!="/boot"}[5m]) / on(mountpoint, node, instance) avg_over_time(node_filesystem_size_bytes{device=~"/dev/.*",fstype!="iso9660",mountpoint!="/boot"}[5m])) > 95)
+    for: 5m
+    labels:
+      severity: whine
+    annotations:
+      description: File system {{$labels.mountpoint}} on {{$labels.node}} is {{printf "%.1f" $value}} % full
+      summary: File system {{$labels.mountpoint}} on {{$labels.node}} is >95% full
+  - alert: Disk100pctFull
+    expr: round(node_filesystem_avail_bytes{device=~"/dev/.*",fstype!="iso9660",mountpoint!="/boot",mountpoint!="/boot/efi"} / (1024 * 1024)) < 500
+    for: 10m
+    labels:
+      severity: critical
+    annotations:
+      description: File system {{$labels.mountpoint}} on {{$labels.node}} is pretty full. ssh to {{$labels.node}} and see if you find something to delete. sudo aptitude autoclean might be a super quick win.
+      summary: File system {{$labels.mountpoint}} on {{$labels.node}} has only {{$value}} MB free
+  - alert: ServerDown
+    expr: avg_over_time(up{instance=~"^.*:9100"}[5m]) == 0
+    for: 5m
+    labels:
+      severity: critical
+    annotations:
+      description: 'Down: {{$labels.instance}}'
+      summary: 'Server down: {{$labels.instance}}'
+
+  - alert: HighLoad5Min
+    expr: avg by(node, instance) (node_load5) > ((avg by(node, instance) (node_cpu_count)) * 3.5)
+    for: 10m
+    labels:
+      severity: whine
+    annotations:
+      description: Server is under heavy load, 5-min load average is {{ $value }}
+        for 10min.
+      summary: High load on {{$labels.node}}. 5-min load avg is {{ $value }}
+  - alert: CpuClockThrottling
+    expr: sum by(node) (node_cpu_frequency_hertz) / sum by(node) (node_cpu_cores_count) / 1e+06 < 900
+    for: 10m
+    labels:
+      severity: whine
+    annotations:
+      description: The machine is working with throttled CPU, disable it for maintenance
+      summary: '{{$labels.node}} works with low CPU performance '
+  - alert: NodeExporterUnavailable
+    expr: sum by(node) (label_replace(hetzner_node_registered, "node", "$0", "exported_node",".*")) unless sum by(node) (up{job="node"}) > 0
+    for: 10m
+    labels:
+      severity: whine
+    annotations:
+      description: The machine can be misconfigured or issues with metric exporter
+      summary: 'Node exporter is not working on the machine / machines '
+  - alert: NodeExporterStopped
+    expr: sum by(node) (label_replace(hetzner_node_registered, "node", "$0", "exported_node",".*")) - sum by(node) (up{job="node"}) > 0
+    for: 10m
+    labels:
+      severity: whine
+    annotations:
+      description: It's usually means issues with node_exporter
+      summary: Node exporter is not working on the machine / machines
+  - alert: ConsulUnavailable
+    expr: sum by(exported_node) (hetzner_node_registered) unless sum by(exported_node) (consul_catalog_service_node_healthy) > 0
+    for: 10m
+    labels:
+      severity: whine
+    annotations:
+      description: It's usually means issues with Consul
+      summary: The machine isn't registered in Consul
+
+  #== Docker ALERTING ==#
+  - alert: DockerContainerDown
+    expr: engine_daemon_container_states_containers{state="stopped"} > 0
+    for: 2m
+    labels:
+      severity: whine
+    annotations:
+      summary: 'Someone docker is down into docker infra'
+      description: "Someone docker container is not running on {{$labels.instance}} please check it"
+  - alert: DockerContainerRestart
+    expr: process_uptime_seconds{dc=~"dc-.*"} < 120
+    for: 1m
+    labels:
+      severity: info
+    annotations:
+      summary: 'Docker {{$labels.appname}} state up only < 120 sec'
+      description: "Docker {{$labels.appname}}-{{$labels.version}} restarted on {{$labels.node}}"
+
+  #=== COMMON ===#
+
+  - alert: PrometheusTooManyRestarts
+    expr: changes(process_start_time_seconds{job=~"prometheus|alertmanager"}[15m]) > 2 # I think we need our docker image with consul register in future...
+    for: 0m
+    labels:
+      severity: whine
+    annotations:
+      summary: Prometheus too many restarts (instance {{ $labels.instance }})
+      description: "Prometheus has restarted more than twice in the last 15 minutes. It might be crashlooping.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+ ## Uncomment this when you have register alertmanager in prometheus.
+#  - alert: PrometheusAlertmanagerJobMissing
+#    expr: absent(up{job="alertmanager"})
+#    for: 0m
+#    labels:
+#      severity: whine
+#    annotations:
+#      summary: Prometheus AlertManager job missing (instance {{ $labels.instance }})
+#      description: "A Prometheus AlertManager job has disappeared\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+  - alert: HostOutOfMemory
+    expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100 < 10
+    for: 10m
+    labels:
+      severity: whine
+    annotations:
+      summary: Host out of memory (instance {{ $labels.instance }})
+      description: "Node memory is filling up (< 10% left) already 10m \n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+    # You may want to increase the alert manager 'repeat_interval' for this type of alert to daily or weekly
+  - alert: HostMemoryIsUnderUtilized
+    expr: 100 - (rate(node_memory_MemAvailable_bytes[30m]) / node_memory_MemTotal_bytes * 100) < 20
+    for: 2w
+    labels:
+      severity: info
+    annotations:
+      summary: Host Memory is under utilized (instance {{ $labels.instance }})
+      description: "Node memory is < 20% for 2 week. Consider reducing memory space.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+  - alert: HostUnusualDiskWriteLatency
+    expr: rate(node_disk_write_time_seconds_total[1m]) / rate(node_disk_writes_completed_total[1m]) > 0.1 and rate(node_disk_writes_completed_total[1m]) > 0
+    for: 2m
+    labels:
+      severity: whine
+    annotations:
+      summary: Host unusual disk write latency (instance {{ $labels.instance }})
+      description: "Disk latency is growing (write operations > 100ms)\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+  - alert: HostHighCpuLoad
+    expr: sum by (instance) (avg by (mode, instance) (rate(node_cpu_seconds_total{mode!="idle"}[2m]))) > 0.8
+    for: 30m
+    labels:
+      severity: whine
+    annotations:
+      summary: Host high CPU load (instance {{ $labels.instance }})
+      description: "CPU load is > 80%\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+    # You may want to increase the alert manager 'repeat_interval' for this type of alert to daily or weekly
+  - alert: HostCpuIsUnderUtilized
+    expr: 100 - (rate(node_cpu_seconds_total{mode="idle"}[30m]) * 100) < 20
+    for: 2w
+    labels:
+      severity: info
+    annotations:
+      summary: Host CPU is under utilized (instance {{ $labels.instance }})
+      description: "CPU load is < 20% for 2 week. Consider reducing the number of CPUs.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+  - alert: HostOomKillDetected
+    expr: increase(node_vmstat_oom_kill[1m]) > 0
+    for: 0m
+    labels:
+      severity: critical
+    annotations:
+      summary: Host OOM kill detected (instance {{ $labels.instance }})
+      description: "OOM kill detected\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+

@@ -1,0 +1,1 @@
+region: us-east-1 # default aws region, but it will be override in tasks/main.yml:26 via set_fact and ansible ec2_variable

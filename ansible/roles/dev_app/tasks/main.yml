@@ -1,0 +1,122 @@
+---
+  - name: Create app directory if it does not exist
+    ansible.builtin.file:
+      path: '{{ apps_root_path }}'
+      state: directory
+      mode: '0755'
+  - name: Include vars for each server
+    include_vars:
+      file: "defaults/{{ inventory_hostname }}.yml"
+    when:
+      - ansible_connection != 'local'
+  - name: Include vars for localhost
+    include_vars:
+      file: "compose.yml"
+    when:
+      - ansible_connection == 'local'
+  - amazon.aws.ec2_metadata_facts:
+    when: "'aws' in group_names"
+  - name: Script exec list IP
+    script: list.py
+    args:
+      executable: python3
+      chdir: "{{ apps_root_path }}"
+    register: list_ip
+    ignore_errors: true
+    when: (defaults is defined) or  (apps is defined)
+  - name: Script exec list port
+    script: list_ports.py
+    args:
+      executable: python3
+      chdir: "{{ apps_root_path }}"
+    register: docker_ports
+    ignore_errors: true
+    when: (defaults is defined) or  (apps is defined)
+  - name: Bash script exec, find free port
+    script:
+      cmd: freeport.sh
+    register: port_result
+    when: (defaults is defined) or  (apps is defined)
+  - name: create docker-compose
+    template:
+      src: docker-compose.yml.j2
+      dest: "{{ apps_compose_path }}"
+    when: (defaults is defined) or  (apps is defined)
+
+  - name: include create nginx config
+    import_tasks: nginx.yml
+    notify: restart nginx
+    ignore_errors: true
+    when:
+      - "'nginx' in defaults"
+  - name: include create mongo config
+    import_tasks: mongo.yml
+    ignore_errors: true
+    when: "'mongo' in defaults"
+  - name: delete mongo config if not defined
+    ansible.builtin.file:
+      path: '{{ apps_root_path }}/mongo'
+      state: absent
+    ignore_errors: true
+    when: "'mongo' not in defaults"
+    
+  - name: Create a aws directory if it does not exist
+    ansible.builtin.file:
+      path: '{{ apps_root_path }}/{{ aws_configs_path }}'
+      state: directory
+      mode: '0755'
+      recurse: yes
+    when:
+      - "'aws' in group_names"
+      - aws_config
+
+  - name: Create a aws directory if it does not exist
+    ansible.builtin.file:
+      path: '/root/{{ aws_configs_path }}'
+      state: directory
+      mode: '0755'
+    when:
+      - "'aws' in group_names"
+      - aws_config
+
+  - name: create aws config
+    template:
+      src: "aws/config.j2"
+      dest: "/root/{{ aws_configs_path }}/config"
+    when:
+      - "'aws' in group_names"
+      - aws_config
+  - name: create aws config
+    template:
+      src: "aws/credentials.j2"
+      dest: "/root/{{ aws_configs_path }}/credentials"
+    when:
+      - "'aws' in group_names"
+      - aws_config
+
+  - name: DOCKER-COMPOSE UP
+    docker_compose:
+      project_src: "{{ apps_root_path }}"
+      stopped: no
+      state: present
+      remove_orphans: yes
+    tags: apps
+    when:
+      - "ansible_connection != 'local'"
+      - (defaults is defined) or  (apps is defined)
+    notify: Send slack notification
+
+
+  - name: create script for clear size
+    template:
+      src: "clear.sh.j2"
+      dest: "/var/opt/clear.sh"
+    when:
+      - clear_script
+
+  - name: Create cron job for clear disk
+    ansible.builtin.cron:
+      name: "Clear disk"
+      minute: "10"
+      job: "chmod +x /var/opt/clear.sh && /var/opt/clear.sh >> /var/log/cron_clear.log 2>&1"
+    when: clear_script
