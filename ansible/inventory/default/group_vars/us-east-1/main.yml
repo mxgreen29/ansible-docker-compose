@@ -1,0 +1,6 @@
+slack_notification: false
+ssl: true
+aws_config: false
+ansible_user: ubuntu
+mongo_backup: false
+s3_backup_path: ""

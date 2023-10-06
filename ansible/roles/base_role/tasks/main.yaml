@@ -66,7 +66,7 @@
       create: yes
       validate: visudo -cf %s
       content: |
-        %developer ALL=(ALL) NOPASSWD: /usr/bin/yum update
+        %developer ALL=(ALL) NOPASSWD: /usr/bin/apt update
         %developer ALL=(ALL) NOPASSWD: /usr/local/bin/docker-compose *
         %developer ALL=(ALL) NOPASSWD: /bin/ps ax
         %developer ALL=(ALL) NOPASSWD: /bin/netstat
