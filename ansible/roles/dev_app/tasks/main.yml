@@ -9,11 +9,10 @@
       file: "defaults/{{ inventory_hostname }}.yml"
     when:
       - ansible_connection != 'local'
-  - name: Include vars for localhost
-    include_vars:
-      file: "compose.yml"
-    when:
-      - ansible_connection == 'local'
+#  - name: Include vars for localhost
+#    include_vars:
+#      file: "compose.yml"
+#    when: ansible_connection == 'local'
   - amazon.aws.ec2_metadata_facts:
     when: "'aws' in group_names"
   - name: Script exec list IP
@@ -59,7 +58,7 @@
       state: absent
     ignore_errors: true
     when: "'mongo' not in defaults"
-    
+
   - name: Create a aws directory if it does not exist
     ansible.builtin.file:
       path: '{{ apps_root_path }}/{{ aws_configs_path }}'

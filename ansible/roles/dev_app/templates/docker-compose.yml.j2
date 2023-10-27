@@ -27,7 +27,15 @@ services:
 {% for app_id, cfg in defaults.items() %}
 {% if app_id == "nginx" %}
   nginx:
-    image: custom-nginx:1.0.0
+{% if ansible_connection == 'local' %}
+    build:
+      context: {{ image_nginx_path }}
+      dockerfile: Dockerfile
+      args:
+        BASE_IMAGE_TAG: 1.23.2-alpine
+{% else %}
+    image: nginx:1.0.0
+{% endif %}
     networks:
       core_net:
         ipv4_address: 172.19.1.1
@@ -117,7 +125,15 @@ services:
 {% endif %}
 {% if 'prometheus' in defaults %}
   prometheus:
-    image: custom-prometheus:1.0.0
+{% if ansible_connection == 'local' %}
+    build:
+      context: {{ image_prom_path }}
+      dockerfile: Dockerfile
+      args:
+        PROMETHEUS_VERSION: 2.41.0
+{% else %}
+    image: prometheus:1.0.0
+{% endif %}
     container_name: prometheus
     restart: unless-stopped
     environment:

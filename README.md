@@ -1,3 +1,9 @@
+# Дисклеймер
+Простите за столь скомканный README, так как пишу его в сжатые сроки и я когда-нибудь к нему вернусь и опишу подробнее.
+Сейчас же для полноценного запуска инфраструктуры с помощью моего проекта, нужно более глубокое погружение в код после прочтения README.
+Также обращаю ваше внимание, что README описано по возможности на простом языке о том, как пользоваться репозиторием, который
+уже настроен. Для настройки и использования вам необходимо понимать основы Ansible.
+
 # Ansible
 
 ## Ansible vault
@@ -99,6 +105,13 @@ AWS регионе `[us-east-1]`
       - "1234"
 ```
 
+## For Remote installation
+Для запуска тебе потребуется создать или воспользоваться уже имеющейся директории server. Там тебе предстоит создать или 
+изменить YMl файл, который создаст docker-compose. 
+Обрати внимание на то, что для запуска Ansible playbook, тебе необходимо создать inventory. 
+Для этого в моем проекте есть inventory_builder.py. Подробнее описанно в ansible/inventory/README.md.
+
+
 ## Local installation
 
 ### Before you start. Prepare
@@ -112,15 +125,27 @@ pwd
 ```
 Git cloning this project and come to project directory and you can generate docker-compose locally
 
-### Generate docker compose for mac os.
+### Problems with running on Mac OS
 ```
 echo "$(whoami) ALL=(ALL) NOPASSWD: ALL"
 # Now you need to add output of the last command
 sudo vim /etc/sudoers.d/20_user
 ```
 Now you can run ansible playbook
+
+### Running Ansible Playbook on local machine
 ```
 cd ${this_project_directory}/ansible
-ansible-playbook -i inventory/local/hosts.ini --connection=local -v dev-role.yaml -e ansible_user=$(whoami)
+```
+Далее вы можете запустить Base Role, если на вашем сервере/виртуальной машине ничего не установленно. Не работает для MacOS
+```
+ansible-playbook -i inventory/local/hosts.ini --connection=local -v main.yml -e ansible_user=$(whoami) --vault-password-file password.txt
+```
+Следующей командой вы можете запустить Dev role с созданием автоматического docker-compose файла.
+```
+ansible-playbook -i inventory/local/hosts.ini --connection=local -v dev-role.yaml -e ansible_user=$(whoami) --vault-password-file password.txt
 ```
 
+### Advanced level and Gitlab config
+В моем проекте есть так example.gitlab-ci.yml в которым описаны ci/cd jobs для запуска ansible.
+Также оттуда вы можете подчеркнуть что-то важное для запуска, что я забыл указать в этом README.

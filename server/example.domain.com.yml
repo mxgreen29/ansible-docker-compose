@@ -1,23 +1,44 @@
 apps:
-  example-container-name:
-    container_name: any_name
-    image: any-image:any-tag
-    proxy_port: 2901 # private container port for nginx proxy config
+  # Run any public docker...
+  alertmanager:
+    image: prom/alertmanager:v0.25.0
+    user: root
+    logging: yes
+    nginx_port: 9093
     volumes:
-      - "/custom/dir:/any/dir"
-    ports:
-      - "5000:5000"
-    logging: no # Enable docker logging
-    entrypoint: |-
-      - sh
-      - -euc
-      - |
-        mkdir -p example
+      - "{{ apps_root_path }}/alertmanager:/etc/alertmanager/"
+      - alertmanager-data:/var/lib/alertmanager
+    container_name: alertmanager
+    environment:
+      TZ: "Europe/Samara"
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/var/lib/alertmanager'
+## All possible functions for creating docker
+#  example-container-name:
+#    container_name: any_name
+#    image: any-image:any-tag
+#    proxy_port: 2901 # private container port for nginx proxy config
+#    volumes:
+#      - "/custom/dir:/any/dir"
+#    ports:
+#      - "5000:5000"
+#    logging: no # Enable docker logging
+#    entrypoint: |-
+#      - sh
+#      - -euc
+#      - |
+#        mkdir -p example
 
 
+## Please uncomment if u need any of these services
 defaults:
   nginx:
-  mongo:
-  promtail:
-  rabbitmq:
-  prometheus:
+#  mongo:
+#  promtail:
+#  rabbitmq:
+#  prometheus:
+
+## creating additional volumes, e.g:
+volumes:
+  alertmanager-data:

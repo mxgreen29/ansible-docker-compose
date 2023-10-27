@@ -34,6 +34,7 @@
       - inventory_hostname != 'localhost'
       - public_domain is not defined
   - amazon.aws.ec2_metadata_facts:
+    when: "'aws' in group_names"
   - name: Set region variable
     set_fact: region = "{{ ansible_ec2_placement_region }}"
     when: "'aws' in group_names"
