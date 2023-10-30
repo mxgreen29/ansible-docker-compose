@@ -43,7 +43,7 @@ defaults:
   rabbitmq:
   prometheus:
 ```
-Пример такого YML-файла вы можете увидеть в директории [server](https://github.com/mxgreen29/ansible-docker-compose/blob/96a16804ac062e7f1b2421668c039b89b88ca884/server) или же в [compose.yml](https://github.com/mxgreen29/ansible-docker-compose/blob/96a16804ac062e7f1b2421668c039b89b88ca884/ansible/inventory/local/group_vars/all/compose.yml) для local installation.
+Пример такого YML-файла вы можете увидеть в директории [server](https://github.com/mxgreen29/ansible-docker-compose/tree/main/server) или же в [compose.yml](https://github.com/mxgreen29/ansible-docker-compose/blob/main/ansible/inventory/local/group_vars/all/compose.yml) для local installation.
 
 ## Common things
 1. Как настроена архитектура ansible.
@@ -60,8 +60,8 @@ defaults:
 ```
 
 3. Создание приложений с помощью docker-compose.
-   Для сервера необходимо создать одноименный файл с расширением yml в ЛОКАЛЬНОМ запуске [compose.yml](https://github.com/mxgreen29/ansible-docker-compose/blob/96a16804ac062e7f1b2421668c039b89b88ca884/ansible/inventory/local/group_vars/all/compose.yml)
-   или в remote запуске в директории например [server](https://github.com/mxgreen29/ansible-docker-compose/blob/96a16804ac062e7f1b2421668c039b89b88ca884/server) если вы собираетесь запускать CI/CD.
+   Для сервера необходимо создать одноименный файл с расширением yml в ЛОКАЛЬНОМ запуске [compose.yml](https://github.com/mxgreen29/ansible-docker-compose/blob/main/ansible/inventory/local/group_vars/all/compose.yml)
+   или в remote запуске в директории например [server](https://github.com/mxgreen29/ansible-docker-compose/tree/main/server) если вы собираетесь запускать CI/CD.
    Например:
    example.com.yml. В данном файле как минимум должны быть указаны строки:
     ```
@@ -83,7 +83,7 @@ defaults:
 
 Но для каждого приложения можно, а иногда нужно, указать инфраструктурный параметр, называющийся **proxy_port** - этот порт необходим в случае прокси порта для nginx. Пример porxy_port: 3000 когда например веб приложение в контейнере запущено на 3000 порте. Эта настройка используется для создания nginx конфигов(ansible/roles/dev_app/templates/nginx).
 Например, если ваш докер запускает веб-приложение на 80 порту, вам необходимо указать
-`proxy_port: 80` тогда nginx будет знать о том, какой upstream и proxy_pass создать в [template nginx site](https://github.com/mxgreen29/ansible-docker-compose/blob/96a16804ac062e7f1b2421668c039b89b88ca884/ansible/roles/dev_app/templates/nginx/sites/site.conf.conf.j2)
+`proxy_port: 80` тогда nginx будет знать о том, какой upstream и proxy_pass создать в [template nginx site](https://github.com/mxgreen29/ansible-docker-compose/blob/main/ansible/roles/dev_app/templates/nginx/sites/site.conf.conf.j2)
 
 ## Ansible vault
 ```
