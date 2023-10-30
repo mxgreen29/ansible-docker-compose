@@ -146,6 +146,14 @@ cd ${this_project_directory}/ansible
 ```
 ansible-playbook -i inventory/local/hosts.ini --connection=local -v dev-role.yaml -e ansible_user=$(whoami) --vault-password-file password.txt
 ```
+Но перед или после запуска Docker-compose вы можете столкнуться с проблемой, что nginx падает с ошибкой.
+Ему нужны SSL сертификаты. Сгенерировать их вы можете командами:
+```
+openssl genrsa -out nginx.key 2048
+openssl req -new -key key.pem -out csr.pem
+openssl x509 -req -days 365 -in csr.pem -signkey key.pem -out nginx.crt
+```
+Далее в сгенерированном docker-compose поменяйте путь до SSL-сертификатов для nginx.
 
 ### Advanced level and Gitlab config
 В моем проекте есть так example.gitlab-ci.yml в которым описаны ci/cd jobs для запуска ansible.
