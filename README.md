@@ -6,14 +6,6 @@
 
 # Ansible
 
-## Ansible vault
-```
-ansible-vault create secrets.yml
-New Vault password: testpassword
-Confirm New Vault password: testpassword
-```
-
-## I'm sorry that the README is in Russian now, but in the future this will be changed and another part of the README will be added.
 
 ## Как это работает?
 Вы создаете или используете директорию с именем проекта. В эту директорию добавляете yml файл, который должен быть назван
@@ -51,6 +43,8 @@ defaults:
   rabbitmq:
   prometheus:
 ```
+Пример такого YML-файла вы можете увидеть в директории [server](https://github.com/mxgreen29/ansible-docker-compose/blob/96a16804ac062e7f1b2421668c039b89b88ca884/server) или же в [compose.yml](https://github.com/mxgreen29/ansible-docker-compose/blob/96a16804ac062e7f1b2421668c039b89b88ca884/ansible/inventory/local/group_vars/all/compose.yml) для local installation.
+
 ## Common things
 1. Как настроена архитектура ansible.
    В данном проекте Ansible создано 2 роли. Первая - base_role(ansible/roles/base_role), которая отвечает за базовую настройку сервера - репозитории, установки пакетов,
@@ -66,8 +60,8 @@ defaults:
 ```
 
 3. Создание приложений с помощью docker-compose.
-   Для сервера необходимо создать одноименный файл с расширением yml в ЛОКАЛЬНОМ запуске inventory/local/group_vars/all/compose.yml
-   или в remote запуске в директории например server если вы собираетесь запускать CI/CD.
+   Для сервера необходимо создать одноименный файл с расширением yml в ЛОКАЛЬНОМ запуске [compose.yml](https://github.com/mxgreen29/ansible-docker-compose/blob/96a16804ac062e7f1b2421668c039b89b88ca884/ansible/inventory/local/group_vars/all/compose.yml)
+   или в remote запуске в директории например [server](https://github.com/mxgreen29/ansible-docker-compose/blob/96a16804ac062e7f1b2421668c039b89b88ca884/server) если вы собираетесь запускать CI/CD.
    Например:
    example.com.yml. В данном файле как минимум должны быть указаны строки:
     ```
@@ -88,7 +82,15 @@ defaults:
 ```
 
 Но для каждого приложения можно, а иногда нужно, указать инфраструктурный параметр, называющийся **proxy_port** - этот порт необходим в случае прокси порта для nginx. Пример porxy_port: 3000 когда например веб приложение в контейнере запущено на 3000 порте. Эта настройка используется для создания nginx конфигов(ansible/roles/dev_app/templates/nginx).
+Например, если ваш докер запускает веб-приложение на 80 порту, вам необходимо указать
+`proxy_port: 80` тогда nginx будет знать о том, какой upstream и proxy_pass создать в [template nginx site](https://github.com/mxgreen29/ansible-docker-compose/blob/96a16804ac062e7f1b2421668c039b89b88ca884/ansible/roles/dev_app/templates/nginx/sites/site.conf.conf.j2)
 
+## Ansible vault
+```
+ansible-vault create secrets.yml
+New Vault password: testpassword
+Confirm New Vault password: testpassword
+```
 
 ## Features
 Автоматическая генерация Ansible Inventory благодаря скрипту inventory_builder.py. Собственно берется лист из yml файлом.
@@ -110,7 +112,6 @@ AWS регионе `[us-east-1]`
 изменить YMl файл, который создаст docker-compose. 
 Обрати внимание на то, что для запуска Ansible playbook, тебе необходимо создать inventory. 
 Для этого в моем проекте есть inventory_builder.py. Подробнее описанно в ansible/inventory/README.md.
-
 
 ## Local installation
 
@@ -139,7 +140,7 @@ cd ${this_project_directory}/ansible
 ```
 Далее вы можете запустить Base Role, если на вашем сервере/виртуальной машине ничего не установленно. Не работает для MacOS
 ```
-ansible-playbook -i inventory/local/hosts.ini --connection=local -v main.yml -e ansible_user=$(whoami) --vault-password-file password.txt
+   ansible-playbook -i inventory/local/hosts.ini --connection=local -v main.yml -e ansible_user=$(whoami) --vault-password-file password.txt
 ```
 Следующей командой вы можете запустить Dev role с созданием автоматического docker-compose файла.
 ```

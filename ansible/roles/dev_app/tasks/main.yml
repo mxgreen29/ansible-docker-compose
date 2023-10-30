@@ -101,7 +101,6 @@
       remove_orphans: yes
     tags: apps
     when:
-      - "ansible_connection != 'local'"
       - (defaults is defined) or  (apps is defined)
     notify: Send slack notification
 

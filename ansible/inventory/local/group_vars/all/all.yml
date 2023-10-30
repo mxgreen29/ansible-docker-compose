@@ -3,10 +3,11 @@ executable_temp_dir: /tmp
 create_linux_groups: true
 clear_script: false
 ssl: false
+## My local user on MacOS, you can change and use this variable in other variables.
 local_user: max.kolpakov
 apps_root_path: "/app"
 mongo_backup: false
-## Path to local image of nginx in this project
+## Path to local image of nginx in this project. Example on MacOS
 image_nginx_path: "/Users/{{ local_user }}//IdeaProjects/my/ansible-docker-compose/images/nginx"
-## Path to local image of prometheus in this project
+## Path to local image of prometheus in this project. Example on MacOS
 image_prom_path: "/Users/{{ local_user }}//IdeaProjects/my/ansible-docker-compose/images/prometheus"

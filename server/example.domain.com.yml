@@ -2,9 +2,9 @@ apps:
   # Run any public docker...
   alertmanager:
     image: prom/alertmanager:v0.25.0
-    user: root
+    user: root # needs root user for alertmanager
     logging: yes
-    nginx_port: 9093
+    proxy_port: 9093
     volumes:
       - "{{ apps_root_path }}/alertmanager:/etc/alertmanager/"
       - alertmanager-data:/var/lib/alertmanager
