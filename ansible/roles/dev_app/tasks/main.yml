@@ -9,10 +9,6 @@
       file: "defaults/{{ inventory_hostname }}.yml"
     when:
       - ansible_connection != 'local'
-#  - name: Include vars for localhost
-#    include_vars:
-#      file: "compose.yml"
-#    when: ansible_connection == 'local'
   - amazon.aws.ec2_metadata_facts:
     when: "'aws' in group_names"
   - name: Script exec list IP
@@ -102,8 +98,7 @@
     tags: apps
     when:
       - (defaults is defined) or  (apps is defined)
-    notify: Send slack notification
-
+#    notify: Send slack notification
 
   - name: create script for clear size
     template:

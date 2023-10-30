@@ -126,7 +126,7 @@ pwd
 ```
 Git cloning this project and come to project directory and you can generate docker-compose locally
 
-### Problems with running on Mac OS
+### Preparation
 ```
 echo "$(whoami) ALL=(ALL) NOPASSWD: ALL"
 # Now you need to add output of the last command
@@ -149,9 +149,10 @@ ansible-playbook -i inventory/local/hosts.ini --connection=local -v dev-role.yam
 Но перед или после запуска Docker-compose вы можете столкнуться с проблемой, что nginx падает с ошибкой.
 Ему нужны SSL сертификаты. Сгенерировать их вы можете командами:
 ```
-openssl genrsa -out nginx.key 2048
-openssl req -new -key key.pem -out csr.pem
-openssl x509 -req -days 365 -in csr.pem -signkey key.pem -out nginx.crt
+cd /etc/ssl/
+sudo openssl genrsa -out example.com.key 2048
+sudo openssl req -new -key example.com.key -out csr.pem
+sudo openssl x509 -req -days 365 -in csr.pem -signkey example.com.key -out example.com.crt
 ```
 Далее в сгенерированном docker-compose поменяйте путь до SSL-сертификатов для nginx.
 
