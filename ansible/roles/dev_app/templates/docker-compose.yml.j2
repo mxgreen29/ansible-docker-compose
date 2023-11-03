@@ -234,8 +234,7 @@ services:
     deploy:
 {% if cfg.deploy.resources  is defined %}
       resources:
-{% set param = cfg.deploy.resources %}
-        {{ param | to_nice_yaml | indent(width=6, first=false) }}{% endif %}{% endif %}
+{{ cfg.deploy.resources | to_nice_yaml | indent(width=8, first=true) }}{% endif %}{% endif %}
     restart: always
 ####-----------------------------------------------####
 {% endfor %}
