@@ -195,6 +195,9 @@ services:
 {% endif %}
 {% if cfg.ports is defined %}
     ports:
+{% if app_id in busy_ports %}
+      - {{ busy_ports[app_id][0] }}
+{% else %}
 {% for port in cfg.ports %}{#1 #}
 {% if ':' in port %}{#9 #}
       - {{ port }}
@@ -203,6 +206,7 @@ services:
 {% endif %}{#9 #}
 {% endfor %}{#1 END LOOP #}
 {% do list_port.update %}
+{% endif %}
 {% endif %}
 {% if cfg.volumes is defined %}
     volumes:

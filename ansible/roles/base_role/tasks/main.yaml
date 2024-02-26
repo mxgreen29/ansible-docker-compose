@@ -96,6 +96,8 @@
 
 
   #https://docs.ansible.com/ansible/latest/collections/ansible/builtin/user_module.html
+# TODO:
+# Better way to delete old users: https://habr.com/ru/companies/rtlabs/articles/791492/
   - name: Remove old users
     ansible.builtin.user:
       name: "{{ item }}"
